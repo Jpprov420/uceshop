@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+
   db:
     image: postgres:16
     container_name: uceshop-db
@@ -21,6 +22,24 @@ services:
       retries: 20
     networks:
       - uceshop-net
+  
+  catalog-service:
+    build:
+      context: ./service-a/catalog-service
+      dockerfile: Dockerfile
+    container_name: uceshop-catalog
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "8081:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - uceshop-net  
 
 networks:
   uceshop-net:
