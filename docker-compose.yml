@@ -41,6 +41,27 @@ services:
     networks:
       - uceshop-net  
 
+  order-service:
+    container_name: uceshop-order
+    build:
+      context: ./service-b/order-service
+    env_file: .env
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      CATALOG_BASE_URL: http://catalog-service:8080
+    depends_on:
+      db:
+        condition: service_healthy
+      catalog-service:
+        condition: service_started
+    ports:
+      - "${ORDER_PORT}:8080"
+    networks:
+      - uceshop-net
+
 networks:
   uceshop-net:
     driver: bridge
