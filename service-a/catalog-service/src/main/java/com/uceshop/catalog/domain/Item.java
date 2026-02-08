@@ -17,13 +17,18 @@ public class Item {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
+    @Column(nullable = false)
+    private Integer quantity;
+
     public Item() {}
 
     public Long getId() { return id; }
     public String getName() { return name; }
     public BigDecimal getPrice() { return price; }
+    public Integer getQuantity() { return quantity; }
 
     public void setId(Long id) { this.id = id; }
     public void setName(String name) { this.name = name; }
     public void setPrice(BigDecimal price) { this.price = price; }
+    public void setQuantity(Integer quantity) { this.quantity = quantity; }
 }

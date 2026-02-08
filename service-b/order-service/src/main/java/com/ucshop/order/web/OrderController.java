@@ -19,21 +19,23 @@ public class OrderController {
         this.catalogClient = catalogClient;
     }
 
-    // ✅ GET: listar todas las órdenes
+    // ✅ GET: lista órdenes enriquecidas con info del item (nombre/precio/stock)
     @GetMapping("/orders")
-    public ResponseEntity<List<OrderEntity>> list() {
-        return ResponseEntity.ok(repo.findAll());
+    public List<OrderResponse> all() {
+        return repo.findAll().stream().map(o -> {
+            OrderResponse r = OrderResponse.from(o);
+
+            catalogClient.getItemById(o.getItemId()).ifPresent(info -> {
+                r.setItemName(info.getName());
+                r.setItemPrice(info.getPrice());
+                r.setItemStock(info.getQuantity());
+            });
+
+            return r;
+        }).toList();
     }
 
-    // ✅ (opcional) GET: obtener una orden por id
-    @GetMapping("/orders/{id}")
-    public ResponseEntity<?> getById(@PathVariable Long id) {
-        return repo.findById(id)
-                .<ResponseEntity<?>>map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(404).body("Orden no encontrada: " + id));
-    }
-
-    // ✅ POST: crear orden
+    // ✅ POST: mismo body {itemId, quantity}, pero ahora descuenta stock
     @PostMapping("/orders")
     public ResponseEntity<?> create(@RequestBody CreateOrderRequest req) {
 
@@ -41,11 +43,13 @@ public class OrderController {
             return ResponseEntity.badRequest().body("itemId y quantity son obligatorios; quantity>0");
         }
 
-        boolean exists = catalogClient.itemExists(req.getItemId());
-        if (!exists) {
-            return ResponseEntity.badRequest().body("itemId no existe en catalog");
+        // 1) Reservar stock
+        boolean reserved = catalogClient.reserveStock(req.getItemId(), req.getQuantity());
+        if (!reserved) {
+            return ResponseEntity.badRequest().body("No se pudo reservar stock (item inexistente o stock insuficiente)");
         }
 
+        // 2) Guardar orden
         OrderEntity o = new OrderEntity();
         o.setItemId(req.getItemId());
         o.setQuantity(req.getQuantity());
