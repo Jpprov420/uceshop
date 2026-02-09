@@ -1,27 +1,32 @@
-# UCEShop — Microservicios con Spring Boot + PostgreSQL (Docker Compose)
+## Repositorio / Estructura (referencial)
 
-UCEShop es un caso práctico de e-commerce **cloud-native** implementado con **dos microservicios Spring Boot** y una base de datos **PostgreSQL**, orquestado con **Docker Compose**. El proyecto separa responsabilidades en un servicio de catálogo y un servicio de órdenes, con comunicación **HTTP** entre microservicios y persistencia en PostgreSQL.
+# UCEShop — Microservicios Spring Boot + PostgreSQL (Docker Compose)
+
+UCEShop es un caso práctico de e-commerce **cloud-native** implementado con **dos microservicios Spring Boot** y una base de datos **PostgreSQL**, orquestado con **Docker Compose**. El proyecto separa responsabilidades en un servicio de catálogo (productos/stock) y un servicio de órdenes (creación/consulta de órdenes), con comunicación **HTTP** entre microservicios y persistencia en PostgreSQL.
 
 ---
 
 ## Arquitectura
 
-**Componentes**
+### Componentes
 - **catalog-service (Service A)**  
-  Expone el catálogo de productos y permite consultar los ítems disponibles.
+  Gestión de catálogo (**items**) y stock (**quantity**). Expone endpoints REST para consultar y administrar productos.
 - **order-service (Service B)**  
-  Permite crear órdenes y **valida el `itemId` consultando al `catalog-service` por HTTP** antes de persistir.
+  Gestión de órdenes (**orders**). Para crear una orden, valida el `itemId` y **reserva stock consultando al `catalog-service` por HTTP** antes de persistir.
 - **PostgreSQL (db)**  
-  Base de datos para el caso (tablas `items` y `orders`), inicializada con un script SQL.
+  Base de datos del caso (tablas `items` y `orders`) inicializada con un script SQL idempotente.
 - **Docker Compose**  
-  Orquestación de servicios, red interna, healthcheck y variables de entorno.
+  Orquesta servicios, define una **red bridge común**, configura `healthcheck` para DB, aplica `depends_on` con `condition: service_healthy`, y usa variables desde `.env`.
 
-**Flujo principal (POST /orders)**
+### Flujo principal (POST /orders)
 1. Cliente invoca `order-service` para crear una orden.
-2. `order-service` valida campos (`itemId`, `quantity > 0`).
-3. `order-service` consulta `catalog-service` por HTTP (`GET /catalog/items`) para verificar existencia del ítem.
-4. Si existe, persiste en PostgreSQL (`orders`).
+2. `order-service` valida body (`itemId`, `quantity > 0`).
+3. `order-service` solicita reserva de stock a `catalog-service` por HTTP:
+   - `POST /catalog/items/{id}/reserve?qty=X`
+4. Si la reserva es exitosa, `order-service` persiste la orden en PostgreSQL (`orders`).
 5. Retorna la orden creada.
+
+**Nota clave:** el `order-service` **no** accede directamente a la tabla `items`; el control de stock se realiza a través de `catalog-service` (principio de separación de responsabilidades).
 
 ---
 
@@ -36,134 +41,176 @@ UCEShop es un caso práctico de e-commerce **cloud-native** implementado con **d
 
 ---
 
-## Repositorio / Estructura
+## Últimos cambios implementados (evolución del proyecto)
 
-> La estructura puede variar levemente según tu organización, pero típicamente:
-
-# UCEShop — Microservicios con Spring Boot + PostgreSQL (Docker Compose)
-
-UCEShop es un caso práctico de e-commerce **cloud-native** implementado con **dos microservicios Spring Boot** y una base de datos **PostgreSQL**, orquestado con **Docker Compose**. El proyecto separa responsabilidades en un servicio de catálogo y un servicio de órdenes, con comunicación **HTTP** entre microservicios y persistencia en PostgreSQL.
-
----
-
-## Arquitectura
-
-**Componentes**
-- **catalog-service (Service A)**  
-  Expone el catálogo de productos y permite consultar los ítems disponibles.
-- **order-service (Service B)**  
-  Permite crear órdenes y **valida el `itemId` consultando al `catalog-service` por HTTP** antes de persistir.
-- **PostgreSQL (db)**  
-  Base de datos para el caso (tablas `items` y `orders`), inicializada con un script SQL.
-- **Docker Compose**  
-  Orquestación de servicios, red interna, healthcheck y variables de entorno.
-
-**Flujo principal (POST /orders)**
-1. Cliente invoca `order-service` para crear una orden.
-2. `order-service` valida campos (`itemId`, `quantity > 0`).
-3. `order-service` consulta `catalog-service` por HTTP (`GET /catalog/items`) para verificar existencia del ítem.
-4. Si existe, persiste en PostgreSQL (`orders`).
-5. Retorna la orden creada.
+- **Stock en catálogo (`items.quantity`)**:
+  - Se agregó la columna `quantity` a la tabla `items`.
+- **Reserva de stock desde `order-service` sin acceso directo a `items`**:
+  - `order-service` descuenta stock mediante un endpoint HTTP expuesto por `catalog-service`.
+- **GET /orders enriquecido**:
+  - El listado de órdenes se “enriquece” con `itemName` y `itemPrice` consultando `catalog-service`.
+- **GET /orders/{id}**:
+  - Se agregó endpoint para consultar una orden por su ID.
+- **Prevención de duplicados en items por `name`**:
+  - `items.name` se maneja como **UNIQUE** a nivel BD.
+  - En POST de items se valida y se responde **409 Conflict** si ya existe.
 
 ---
 
-## Tecnologías
+## Repositorio / Estructura (referencial)
 
-- Java 17
-- Spring Boot (Web, Data JPA, Actuator)
-- PostgreSQL 16
-- Maven
-- Docker & Docker Compose
-- Postman / curl (pruebas)
+.
+├── docker-compose.yml
+├── .env
+├── db
+│ └── 01_schema_seed.sql
+├── catalog-service
+│ ├── Dockerfile
+│ └── src/main/java/... (controllers, entities, repositories)
+└── order-service
+├── Dockerfile
+└── src/main/java/... (controllers, entities, repositories, integration)
 
----
-## Base de datos (init.sql)
-
-El proyecto inicializa las tablas y carga datos semilla del catálogo:
-
-- `items(id, name, price)`
-- `orders(id, item_id, quantity, created_at)`
-
-**Nota de idempotencia:**  
-La inserción de `items` se realiza con `ON CONFLICT (id) DO NOTHING`, lo que permite ejecutar el script múltiples veces sin duplicar los registros con los mismos IDs. Las sentencias `CREATE TABLE IF NOT EXISTS` también son idempotentes.
 
 ---
 
-## Variables de entorno
+## Requisitos para desplegar en otro equipo
 
-Se utilizan variables para configurar puertos y conexión a la base, y para definir la URL base del catálogo consumida por `order-service`.
+### Opción recomendada (solo Docker)
+Instalar:
+- **Docker Desktop** (Windows/Mac) o **Docker Engine** (Linux)
+- Docker Compose v2 (incluido en Docker Desktop)
 
-Ejemplos típicos:
-- `SERVER_PORT`
-- `SPRING_DATASOURCE_URL`
-- `SPRING_DATASOURCE_USERNAME`
-- `SPRING_DATASOURCE_PASSWORD`
-- `CATALOG_BASE_URL`
+> En Windows, puede requerirse WSL2 habilitado para ejecutar Docker Desktop con backend Linux.
 
-> En Docker Compose, el `order-service` debe apuntar a `http://catalog-service:8080` (hostname interno de la red de Compose), **no** a `localhost`.
-
----
-
-## Endpoints
-
-### catalog-service (Service A)
-- **Health**
-  - `GET /actuator/health`
-- **Catálogo**
-  - `GET /catalog/items`
-  - Respuesta (ejemplo):
-    ```json
-    [
-      {"id":1,"name":"Laptop Gamer","price":1299.99},
-      {"id":2,"name":"Mouse Pro","price":49.90},
-      {"id":3,"name":"Teclado Mecánico","price":89.50}
-    ]
-    ```
-
-### order-service (Service B)
-- **Health**
-  - `GET /actuator/health`
-- **Crear orden**
-  - `POST /orders`
-  - Body:
-    ```json
-    { "itemId": 1, "quantity": 2 }
-    ```
-  - Respuesta (ejemplo):
-    ```json
-    {
-      "id": 1,
-      "itemId": 1,
-      "quantity": 2,
-      "createdAt": "2026-02-06T18:13:51.566036427Z"
-    }
-    ```
-
-> Si se intenta crear una orden con `itemId` inexistente, `order-service` responde `400` con un mensaje de validación.
+### Opción adicional (si vas a compilar localmente)
+- **JDK 17**
+- **Maven**
 
 ---
 
-## Actuator (observabilidad básica)
+## Instalación / Ejecución
 
-`/actuator/health` es un endpoint estándar de Spring Boot Actuator que reporta el estado del servicio.  
-Se utiliza para:
-- Verificar que el servicio está **UP**
-- Habilitar **healthchecks** en contenedores
-- Diagnóstico rápido en despliegues
+### 1) Clonar repositorio
 
-En este proyecto se exponen los endpoints:
-- `health`
-- `info`
+git clone <URL_DEL_REPO>
+cd ucshop
+
+### 2) Configurar .env
+
+Verifica/ajusta variables (ejemplo típico):
+
+POSTGRES_DB=uceshop
+POSTGRES_USER=uceshop_user
+POSTGRES_PASSWORD=uceshop_pass
+
+CATALOG_PORT=8081
+ORDER_PORT=8082
+
+CATALOG_BASE_URL=http://catalog-service:8080
+
+### 3) Levantar con Docker Compose
+docker compose up -d --build
+
+### 4) Ver estado
+docker ps
+docker compose logs -f
 
 ---
 
-## Comunicación HTTP entre microservicios (order-service → catalog-service)
+## Base de datos (init SQL) e idempotencia
 
-El `order-service` implementa un cliente HTTP (`CatalogClient`) que consume el endpoint del catálogo para validar existencia del ítem antes de persistir la orden.
+El contenedor db ejecuta un script SQL desde:
 
-- URL base configurable por propiedad/variable:
-  - `catalog.base-url` (por ejemplo: `http://catalog-service:8080`)
-- Llamada:
-  - `GET {catalog.base-url}/catalog/items`
-- Validación:
-  - Se itera la lista retornada y se verifica coincidencia con `itemId`.
+/docker-entrypoint-initdb.d/01_schema_seed.sql
+
+Incluye:
+
+- Creación de tablas items y orders.
+
+- Columna items.quantity.
+
+-Seed inicial de productos.
+
+## Idempotencia:
+
+CREATE TABLE IF NOT EXISTS evita fallos si ya existen tablas.
+
+ALTER TABLE ... ADD COLUMN IF NOT EXISTS evita fallos si la columna ya existe.
+
+Para seeds, se usa ON CONFLICT (...) DO NOTHING o DO UPDATE según el escenario.
+
+---
+
+## Endpoints disponibles
+
+Host local:
+
+- catalog-service: http://localhost:8081
+
+- order-service: http://localhost:8082
+
+## catalog-service (Service A)
+
+### Health
+
+GET /actuator/health
+
+## Items (CRUD)
+
+GET /catalog/items
+
+GET /catalog/items/{id}
+
+POST /catalog/items
+
+PUT /catalog/items/{id}
+
+DELETE /catalog/items/{id}
+
+### Stock
+
+POST /catalog/items/{id}/reserve?qty=X
+(descuenta stock si hay disponibilidad)
+
+POST /catalog/items/{id}/release?qty=X
+(agrega stock)
+
+Regla anti-duplicados (POST items):
+
+Si name ya existe → 409 Conflict
+
+---
+
+## order-service (Service B)
+
+### Health
+
+GET /actuator/health
+
+### Órdenes
+
+GET /orders
+(lista y enriquece con info de item desde catalog-service)
+
+GET /orders/{id}
+(consulta por ID, con enriquecimiento)
+
+POST /orders
+(crea orden y reserva stock vía catalog-service)
+
+---
+
+## Conclusiones técnicas
+
+Se implementó una arquitectura de microservicios con separación clara de responsabilidades:
+
+- catalog-service como autoridad del catálogo/stock.
+
+- order-service como autoridad de órdenes.
+
+La comunicación HTTP interna (order-service → catalog-service) demuestra integración entre servicios sin acoplarlos a la base de datos del otro dominio.
+
+La orquestación con Docker Compose (red bridge, healthchecks, depends_on, volumen persistente y variables .env) garantiza reproducibilidad, portabilidad y arranque controlado.
+
+El diseño permite extender el sistema (más endpoints, validaciones, reglas de negocio, observabilidad) manteniendo una base consistente y desplegable en cualquier equipo con Docker.
