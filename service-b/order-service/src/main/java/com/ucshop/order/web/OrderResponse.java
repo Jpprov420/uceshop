@@ -3,6 +3,7 @@ package com.ucshop.order.web;
 import com.ucshop.order.domain.OrderEntity;
 
 import java.math.BigDecimal;
+
 import java.time.OffsetDateTime;
 
 public class OrderResponse {
@@ -15,7 +16,6 @@ public class OrderResponse {
     // enriquecimiento (solo GET)
     private String itemName;
     private BigDecimal itemPrice;
-    private Integer itemStock;
 
     public static OrderResponse from(OrderEntity o) {
         OrderResponse r = new OrderResponse();
@@ -33,9 +33,8 @@ public class OrderResponse {
 
     public String getItemName() { return itemName; }
     public BigDecimal getItemPrice() { return itemPrice; }
-    public Integer getItemStock() { return itemStock; }
+
 
     public void setItemName(String itemName) { this.itemName = itemName; }
     public void setItemPrice(BigDecimal itemPrice) { this.itemPrice = itemPrice; }
-    public void setItemStock(Integer itemStock) { this.itemStock = itemStock; }
 }

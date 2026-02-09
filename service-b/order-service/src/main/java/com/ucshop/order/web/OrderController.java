@@ -19,7 +19,7 @@ public class OrderController {
         this.catalogClient = catalogClient;
     }
 
-    // ✅ GET: lista órdenes enriquecidas con info del item (nombre/precio/stock)
+    // ✅ GET: lista órdenes enriquecidas con info del item (nombre/precio)
     @GetMapping("/orders")
     public List<OrderResponse> all() {
         return repo.findAll().stream().map(o -> {
@@ -28,11 +28,28 @@ public class OrderController {
             catalogClient.getItemById(o.getItemId()).ifPresent(info -> {
                 r.setItemName(info.getName());
                 r.setItemPrice(info.getPrice());
-                r.setItemStock(info.getQuantity());
             });
 
             return r;
         }).toList();
+    }
+
+    // ✅ GET: ver una orden por ID (enriquecida con nombre/precio)
+    @GetMapping("/orders/{id}")
+    public ResponseEntity<?> byId(@PathVariable Long id) {
+
+        return repo.findById(id)
+                .map(o -> {
+                    OrderResponse r = OrderResponse.from(o);
+
+                    catalogClient.getItemById(o.getItemId()).ifPresent(info -> {
+                        r.setItemName(info.getName());
+                        r.setItemPrice(info.getPrice());
+                    });
+
+                    return ResponseEntity.ok(r);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     // ✅ POST: mismo body {itemId, quantity}, pero ahora descuenta stock
