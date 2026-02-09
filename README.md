@@ -41,10 +41,6 @@ UCEShop es un caso práctico de e-commerce **cloud-native** implementado con **d
 
 ---
 
-## Repositorio / Estructura
-
-> La estructura puede variar levemente según tu organización, pero típicamente:
-
 # UCEShop — Microservicios con Spring Boot + PostgreSQL (Docker Compose)
 
 UCEShop es un caso práctico de e-commerce **cloud-native** implementado con **dos microservicios Spring Boot** y una base de datos **PostgreSQL**, orquestado con **Docker Compose**. El proyecto separa responsabilidades en un servicio de catálogo y un servicio de órdenes, con comunicación **HTTP** entre microservicios y persistencia en PostgreSQL.
