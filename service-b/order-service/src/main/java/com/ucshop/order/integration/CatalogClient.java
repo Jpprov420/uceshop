@@ -46,9 +46,24 @@ public class CatalogClient {
         }
     }
 
+    public boolean releaseStock(Long itemId, int qty) {
+    String url = UriComponentsBuilder
+            .fromUriString(baseUrl + "/catalog/items/{id}/release")
+            .queryParam("qty", qty)
+            .buildAndExpand(itemId)
+            .toUriString();
+
+    try {
+        restTemplate.postForEntity(url, null, Void.class);
+        return true;
+    } catch (Exception ex) {
+        return false;
+    }
+}
+
     /**
      * GET /catalog/items/{id}
-     * Sirve para enriquecer el GET /orders (mostrar nombre/precio/stock).
+     * Sirve para enriquecer el GET /orders (mostrar nombre/precio).
      */
 public Optional<ItemInfo> getItemById(Long itemId) {
     String url = baseUrl + "/catalog/items/" + itemId;
@@ -75,7 +90,6 @@ public Optional<ItemInfo> getItemById(Long itemId) {
         return Optional.empty();
     }
 }
-
 
     // DTO interno simple
     public static class ItemInfo {

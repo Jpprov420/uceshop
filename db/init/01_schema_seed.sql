@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS items (
   id       SERIAL PRIMARY KEY,
-  name     VARCHAR(120) NOT NULL,
+  name     VARCHAR(120) NOT NULL UNIQUE,
   price    NUMERIC(10,2) NOT NULL
 );
 
