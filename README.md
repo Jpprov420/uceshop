@@ -41,19 +41,13 @@ UCEShop es un caso práctico de e-commerce **cloud-native** implementado con **d
 
 ---
 
-## Últimos cambios implementados (evolución del proyecto)
+## Repositorio / Estructura
 
-- **Stock en catálogo (`items.quantity`)**:
-  - Se agregó la columna `quantity` a la tabla `items`.
-- **Reserva de stock desde `order-service` sin acceso directo a `items`**:
-  - `order-service` descuenta stock mediante un endpoint HTTP expuesto por `catalog-service`.
-- **GET /orders enriquecido**:
-  - El listado de órdenes se “enriquece” con `itemName` y `itemPrice` consultando `catalog-service`.
-- **GET /orders/{id}**:
-  - Se agregó endpoint para consultar una orden por su ID.
-- **Prevención de duplicados en items por `name`**:
-  - `items.name` se maneja como **UNIQUE** a nivel BD.
-  - En POST de items se valida y se responde **409 Conflict** si ya existe.
+> La estructura puede variar levemente según tu organización, pero típicamente:
+
+# UCEShop — Microservicios con Spring Boot + PostgreSQL (Docker Compose)
+
+UCEShop es un caso práctico de e-commerce **cloud-native** implementado con **dos microservicios Spring Boot** y una base de datos **PostgreSQL**, orquestado con **Docker Compose**. El proyecto separa responsabilidades en un servicio de catálogo y un servicio de órdenes, con comunicación **HTTP** entre microservicios y persistencia en PostgreSQL.
 
 ---
 
